@@ -34,8 +34,7 @@ function buildRssUrl() {
     if (S.price === 'free')  parts.push('price-free');
     if (S.price === 'paid')  parts.push('price-paid');
 
-    if (S.platform === 'web')      parts.push('platform-web');
-    if (S.platform === 'download') parts.push('format-download');
+    if (S.platform === 'web') parts.push('platform-web');
 
     // L'API RSS ne supporte qu'un seul tag à la fois
     if (S.tags.length > 0) parts.push('tag-' + S.tags[0]);
@@ -105,11 +104,10 @@ function parseRss(xml) {
       priceLabel = priceMatch[1] + ' $';
     }
 
-    // Détecter plateforme
+    // Détecter plateforme navigateur
     const hasWeb = desc.toLowerCase().includes('browser') || desc.toLowerCase().includes('html5');
-    const hasDl  = desc.toLowerCase().includes('download') || desc.toLowerCase().includes('windows');
 
-    return { title, link, cover, author, price, priceLabel, hasWeb, hasDl };
+    return { title, link, cover, author, price, priceLabel, hasWeb };
   });
 }
 
@@ -125,13 +123,20 @@ async function loadResults() {
     const xml = await fetchRss(url);
     S.items = parseRss(xml);
 
-    // Filtrage côté client si recherche active
+    // Filtrage côté client par recherche
     if (S.search.trim()) {
       const q = S.search.toLowerCase();
       S.items = S.items.filter(i =>
         i.title.toLowerCase().includes(q) ||
         i.author.toLowerCase().includes(q)
       );
+    }
+
+    // Filtrage côté client par prix (pour s'assurer que le résultat est exact)
+    if (S.price === 'free') {
+      S.items = S.items.filter(i => i.price === 'free');
+    } else if (S.price === 'paid') {
+      S.items = S.items.filter(i => i.price === 'paid');
     }
 
     renderGrid();
@@ -165,10 +170,7 @@ function renderGrid() {
       : '';
     const placeholder = `<div class="card-cover-placeholder" ${item.cover ? 'style="display:none"' : ''}>${S.tab === 'games' ? '🎮' : '🗺️'}</div>`;
 
-    const badges = [
-      item.hasWeb ? `<span class="card-badge badge-web">Web</span>` : '',
-      item.hasDl  ? `<span class="card-badge badge-dl">DL</span>`   : '',
-    ].join('');
+    const badges = item.hasWeb ? `<span class="card-badge badge-web">Web</span>` : '';
 
     return `
       <a class="card" href="${item.link}" target="_blank" rel="noopener">
@@ -232,9 +234,6 @@ function renderSidebar() {
       <div class="section-title">Plateforme</div>
       <button class="filter-btn f-web ${S.platform === 'web' ? 'active' : ''}" onclick="setFilter('platform','web')">
         <span class="dot dot-blue"></span> Navigateur
-      </button>
-      <button class="filter-btn ${S.platform === 'download' ? 'active' : ''}" onclick="setFilter('platform','download')">
-        <span class="dot dot-muted"></span> À télécharger
       </button>
     </div>` : '';
 
