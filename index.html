@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>itch.io Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <span class="logo-accent">◆</span> itch<span class="logo-accent">.</span>explorer
+    </div>
+    <div class="search-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Rechercher un jeu, un tileset…">
+    </div>
+    <button class="search-btn" onclick="doSearch()">Rechercher →</button>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" id="tab-games" onclick="switchTab('games')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 11h4m-2-2v4"/>
+        <circle cx="15" cy="12" r="1"/>
+        <circle cx="17" cy="10" r="1"/>
+        <rect x="2" y="6" width="20" height="12" rx="3"/>
+      </svg>
+      Jeux
+    </div>
+    <div class="tab" id="tab-assets" onclick="switchTab('assets')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Tilesets
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- SIDEBAR FILTRES -->
+    <aside id="sidebar"></aside>
+
+    <!-- CONTENU PRINCIPAL -->
+    <main>
+      <div class="toolbar">
+        <div class="active-filters" id="activePills"></div>
+        <select class="sort-select" id="sortSelect" onchange="loadResults()">
+          <option value="popular">Popularité</option>
+          <option value="new">Plus récents</option>
+          <option value="top_rated">Mieux notés</option>
+        </select>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+
+  </div>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
