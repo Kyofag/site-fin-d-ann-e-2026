@@ -1,75 +1,206 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>itch.io Explorer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PokéDex ORAS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- HEADER -->
-  <header>
-    <div class="logo">
-      <span class="logo-accent">◆</span> itch<span class="logo-accent">.</span>explorer
-    </div>
-    <div class="search-wrap">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="M21 21l-4.35-4.35"/>
-      </svg>
-      <input type="text" id="searchInput" placeholder="Rechercher un jeu, un tileset…">
-    </div>
-    <button class="search-btn" onclick="doSearch()">Rechercher →</button>
-  </header>
+<div id="loading-overlay">
+  <div class="loading-ball"></div>
+  <div class="loading-text">Chargement du Pokédex…</div>
+</div>
 
-  <!-- TABS -->
-  <div class="tabs">
-    <div class="tab active" id="tab-games" onclick="switchTab('games')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M6 11h4m-2-2v4"/>
-        <circle cx="15" cy="12" r="1"/>
-        <circle cx="17" cy="10" r="1"/>
-        <rect x="2" y="6" width="20" height="12" rx="3"/>
-      </svg>
-      Jeux
+<!-- HEADER -->
+<header>
+  <div class="logo-wrap">
+    <div class="pokeball-icon"></div>
+    <span class="logo-text">Poké<span>Dex</span></span>
+  </div>
+  <div class="search-bar">
+    <span class="search-icon">⌕</span>
+    <input type="text" id="mainSearch" placeholder="Chercher un Pokémon…" oninput="filterPokedex()">
+  </div>
+  <select class="gen-select" id="genFilter" onchange="filterPokedex()">
+    <option value="0">Toutes les générations</option>
+    <option value="1">Génération I (1–151)</option>
+    <option value="2">Génération II (152–251)</option>
+    <option value="3">Génération III (252–386)</option>
+    <option value="4">Génération IV (387–493)</option>
+    <option value="5">Génération V (494–649)</option>
+    <option value="6">Génération VI (650–721)</option>
+    <option value="7">Génération VII (722–809)</option>
+    <option value="8">Génération VIII (810–905)</option>
+    <option value="9">Génération IX (906–1025)</option>
+  </select>
+  <select class="gen-select" id="typeFilter" onchange="filterPokedex()">
+    <option value="">Tous les types</option>
+  </select>
+</header>
+
+<!-- NAV TABS -->
+<div class="nav-tabs">
+  <div class="nav-tab active" onclick="showPage('pokedex')">📖 Pokédex</div>
+  <div class="nav-tab" onclick="showPage('types')">⚡ Types</div>
+  <div class="nav-tab" onclick="showPage('compare')">⚖️ Comparateur</div>
+  <div class="nav-tab" onclick="showPage('team')">🎯 Team Builder</div>
+  <div class="nav-tab" onclick="showPage('moves')">💥 Capacités</div>
+  <div class="nav-tab" onclick="showPage('abilities')">✨ Talents</div>
+</div>
+
+<!-- PAGE POKÉDEX -->
+<div class="page active" id="page-pokedex">
+  <div class="section-title">Pokédex National</div>
+  <div class="pokedex-grid" id="pokedexGrid"></div>
+  <div class="pagination" id="pokedexPagination"></div>
+</div>
+
+<!-- PAGE TYPES -->
+<div class="page" id="page-types">
+  <div class="section-title">Calculateur de Types</div>
+  <div class="type-calc-grid">
+    <div>
+      <p class="filter-label">Sélectionner un ou deux types :</p>
+      <div class="type-selector" id="typeSelector"></div>
+      <p class="filter-hint">Clic pour sélectionner (max 2)</p>
+      <div id="typeResult"></div>
     </div>
-    <div class="tab" id="tab-assets" onclick="switchTab('assets')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <rect x="3" y="3" width="7" height="7" rx="1"/>
-        <rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/>
-        <rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      Tilesets
+    <div>
+      <p class="filter-label" style="margin-bottom:1rem">Table d'efficacité complète</p>
+      <div id="typeTable" style="overflow-x:auto"></div>
     </div>
   </div>
+</div>
 
-  <!-- LAYOUT -->
-  <div class="layout">
-
-    <!-- SIDEBAR FILTRES -->
-    <aside id="sidebar"></aside>
-
-    <!-- CONTENU PRINCIPAL -->
-    <main>
-      <div class="toolbar">
-        <div class="active-filters" id="activePills"></div>
-        <select class="sort-select" id="sortSelect" onchange="loadResults()">
-          <option value="popular">Popularité</option>
-          <option value="new">Plus récents</option>
-          <option value="top_rated">Mieux notés</option>
-        </select>
+<!-- PAGE COMPARATEUR -->
+<div class="page" id="page-compare">
+  <div class="section-title">Comparateur</div>
+  <div class="compare-grid">
+    <div>
+      <div class="compare-search">
+        <input type="text" id="cmp1Input" placeholder="Pokémon 1 (nom ou #)" oninput="suggestCompare(1)">
       </div>
-      <div class="grid" id="grid"></div>
-      <div class="pagination" id="pagination"></div>
-    </main>
-
+      <div id="cmp1Suggestions"></div>
+      <div class="compare-card" id="cmp1Card">
+        <div class="compare-empty">Chercher un Pokémon</div>
+      </div>
+    </div>
+    <div class="vs-label">VS</div>
+    <div>
+      <div class="compare-search">
+        <input type="text" id="cmp2Input" placeholder="Pokémon 2 (nom ou #)" oninput="suggestCompare(2)">
+      </div>
+      <div id="cmp2Suggestions"></div>
+      <div class="compare-card" id="cmp2Card">
+        <div class="compare-empty">Chercher un Pokémon</div>
+      </div>
+    </div>
   </div>
+  <div id="compareStats" style="margin-top:2rem"></div>
+</div>
 
-  <script src="js/script.js"></script>
+<!-- PAGE TEAM BUILDER -->
+<div class="page" id="page-team">
+  <div class="section-title">Team Builder</div>
+  <div class="team-controls">
+    <select class="filter-select" id="teamGen">
+      <option value="0">Toutes les générations</option>
+      <option value="1">Gen I</option><option value="2">Gen II</option>
+      <option value="3">Gen III</option><option value="4">Gen IV</option>
+      <option value="5">Gen V</option><option value="6">Gen VI</option>
+      <option value="7">Gen VII</option><option value="8">Gen VIII</option>
+      <option value="9">Gen IX</option>
+    </select>
+    <select class="filter-select" id="teamType">
+      <option value="">Tous types</option>
+    </select>
+    <button class="btn-primary" onclick="generateTeam()">🎲 Générer une team</button>
+    <button class="btn-ruby" onclick="clearTeam()">✕ Réinitialiser</button>
+  </div>
+  <div class="team-display" id="teamDisplay"></div>
+  <div id="teamTypeChart"></div>
+</div>
+
+<!-- PAGE CAPACITÉS -->
+<div class="page" id="page-moves">
+  <div class="section-title">Encyclopédie des Capacités</div>
+  <div class="moves-search-bar">
+    <input type="text" id="movesSearch" placeholder="Chercher une capacité…" oninput="filterMoves()">
+    <select class="filter-select" id="movesTypeFilter" onchange="filterMoves()">
+      <option value="">Tous les types</option>
+    </select>
+    <select class="filter-select" id="movesCatFilter" onchange="filterMoves()">
+      <option value="">Toutes catégories</option>
+      <option value="physical">Physique</option>
+      <option value="special">Spéciale</option>
+      <option value="status">Statut</option>
+    </select>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="moves-big-table">
+      <thead><tr>
+        <th onclick="sortMoves('name')">Nom ↕</th>
+        <th onclick="sortMoves('type')">Type ↕</th>
+        <th>Catégorie</th>
+        <th onclick="sortMoves('power')">Puissance ↕</th>
+        <th onclick="sortMoves('accuracy')">Précision ↕</th>
+        <th onclick="sortMoves('pp')">PP ↕</th>
+        <th>Effet</th>
+      </tr></thead>
+      <tbody id="movesBody"></tbody>
+    </table>
+  </div>
+  <div class="pagination" id="movesPagination"></div>
+</div>
+
+<!-- PAGE TALENTS -->
+<div class="page" id="page-abilities">
+  <div class="section-title">Talents</div>
+  <div class="filters-bar">
+    <input class="abilities-search" type="text" id="abilitiesSearch"
+      placeholder="Chercher un talent…" oninput="filterAbilities()">
+  </div>
+  <div id="abilitiesList"></div>
+  <div class="pagination" id="abilitiesPagination"></div>
+</div>
+
+<!-- MODAL POKÉMON -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-close"><button onclick="closeModal()">✕</button></div>
+    <div class="modal-hero">
+      <div class="modal-left">
+        <img class="modal-sprite" id="modalSprite" src="" alt="">
+        <div class="modal-num" id="modalNum"></div>
+        <div class="modal-name" id="modalName"></div>
+        <div class="modal-types" id="modalTypes"></div>
+        <div class="modal-info-grid" id="modalInfo"></div>
+      </div>
+      <div class="modal-right">
+        <div class="stats-section">
+          <div class="stats-label">Statistiques de base</div>
+          <div id="modalStats"></div>
+          <div class="stat-total">Total : <span id="statTotal">0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-tabs">
+      <div class="modal-tab active" onclick="switchModalTab('evolutions')">Évolutions</div>
+      <div class="modal-tab" onclick="switchModalTab('moves')">Capacités</div>
+      <div class="modal-tab" onclick="switchModalTab('smogon')">Stratégie Smogon</div>
+      <div class="modal-tab" onclick="switchModalTab('forms')">Formes</div>
+    </div>
+    <div class="modal-tab-content active" id="mtab-evolutions"></div>
+    <div class="modal-tab-content" id="mtab-moves"></div>
+    <div class="modal-tab-content" id="mtab-smogon"></div>
+    <div class="modal-tab-content" id="mtab-forms"></div>
+  </div>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
