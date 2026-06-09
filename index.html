@@ -37,6 +37,9 @@
     <option value="8">Génération VIII (810–905)</option>
     <option value="9">Génération IX (906–1025)</option>
   </select>
+  <button class="theme-switch" id="themeSwitch" onclick="toggleTheme()" title="Changer de thème">
+    <span class="theme-icon" id="themeIcon">🌙</span>
+  </button>
 </header>
 
 <!-- NAV TABS -->
@@ -59,6 +62,14 @@
     <div class="type-btns" id="typeBtns1"></div>
     <div class="type-filter-label" style="margin-top:.5rem">Type 2 :</div>
     <div class="type-btns" id="typeBtns2"></div>
+    <div class="type-filter-label" style="margin-top:.75rem">Formes spéciales :</div>
+    <div class="type-btns" id="formBtns">
+      <span class="form-pill active" data-form="all" onclick="setFormFilter('all')">Toutes</span>
+      <span class="form-pill" data-form="base" onclick="setFormFilter('base')">Base</span>
+      <span class="form-pill" data-form="mega" onclick="setFormFilter('mega')">Méga-Évolutions</span>
+      <span class="form-pill" data-form="gmax" onclick="setFormFilter('gmax')">Gigamax</span>
+      <span class="form-pill" data-form="regional" onclick="setFormFilter('regional')">Formes Régionales</span>
+    </div>
   </div>
 
   <div class="pokedex-grid" id="pokedexGrid"></div>
@@ -176,7 +187,12 @@
     <div class="modal-close"><button onclick="closeModal()">✕</button></div>
     <div class="modal-hero">
       <div class="modal-left">
-        <img class="modal-sprite" id="modalSprite" src="" alt="">
+        <div class="sprite-wrap">
+          <img class="modal-sprite" id="modalSprite" src="" alt="">
+          <button class="shiny-toggle" id="shinyToggle" onclick="toggleShiny()" title="Voir version shiny">
+            <span id="shinyIcon">✨</span>
+          </button>
+        </div>
         <div class="modal-num" id="modalNum"></div>
         <div class="modal-name" id="modalName"></div>
         <div class="modal-types" id="modalTypes"></div>

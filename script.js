@@ -142,8 +142,57 @@ let abilitiesPage    = 1;
 let cmpData          = [null, null];
 let teamData         = new Array(6).fill(null);
 
-// Noms FR des Pokémon chargés à la demande
-const nameFRCache    = {};
+let activeFormFilter = 'all'; // all | base | mega | gmax | regional
+let formVariants     = [];    // Pokémon mega/gmax/régionaux ajoutés dynamiquement
+let currentModalId   = null;
+let currentModalShiny = false;
+let currentModalSprites = { normal:'', shiny:'' };
+
+// Noms FR persistés en localStorage entre sessions
+const STORAGE_NAMES = 'pokedex_names_fr_v1';
+const STORAGE_TYPES = 'pokedex_types_v1';
+const STORAGE_THEME = 'pokedex_theme';
+
+let nameFRCache = {};
+try { nameFRCache = JSON.parse(localStorage.getItem(STORAGE_NAMES) || '{}'); } catch(e) {}
+
+// Charger le cache types depuis localStorage
+try {
+  const cached = JSON.parse(localStorage.getItem(STORAGE_TYPES) || '{}');
+  Object.assign(typeCache, cached);
+} catch(e) {}
+
+// ═══════════════════════════════════════════════
+// THÈME CLAIR/SOMBRE
+// ═══════════════════════════════════════════════
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.textContent = theme === 'light' ? '☀️' : '🌙';
+  try { localStorage.setItem(STORAGE_THEME, theme); } catch(e) {}
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// Appliquer le thème sauvegardé avant toute requête réseau
+(function initTheme() {
+  let saved = 'dark';
+  try { saved = localStorage.getItem(STORAGE_THEME) || 'dark'; } catch(e) {}
+  applyTheme(saved);
+})();
+
+// Sauvegarde périodique des caches en localStorage
+function persistCaches() {
+  try {
+    localStorage.setItem(STORAGE_NAMES, JSON.stringify(nameFRCache));
+    localStorage.setItem(STORAGE_TYPES, JSON.stringify(typeCache));
+  } catch(e) {}
+}
+setInterval(persistCaches, 8000);
+window.addEventListener('beforeunload', persistCaches);
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -159,8 +208,9 @@ async function init() {
     renderTeamDisplay();
     hideLoader();
 
-    // Précharger les types en arrière-plan par batches silencieux
-    preloadTypes();
+    // Précharger types + noms FR en arrière-plan
+    preloadPokemonData();
+    preloadFormVariants();
   } catch(e) {
     console.error('Init failed:', e);
     document.getElementById('loading-overlay').innerHTML =
@@ -174,22 +224,102 @@ function hideLoader() {
   setTimeout(() => el.style.display='none', 500);
 }
 
-// Précharge les types de tous les Pokémon silencieusement
-async function preloadTypes() {
-  const BATCH = 20;
+// Précharge types ET noms FR de tous les Pokémon
+async function preloadPokemonData() {
+  const BATCH = 18;
   for (let i=0; i<allPokemon.length; i+=BATCH) {
     const batch = allPokemon.slice(i, i+BATCH);
     await Promise.allSettled(batch.map(async p => {
-      if (typeCache[p.id]) return;
+      // Types
+      if (!typeCache[p.id]) {
+        try {
+          const d = await apiFetch(p.url);
+          typeCache[p.id] = d.types.map(t => t.type.name);
+        } catch(e) {}
+      }
+      // Nom FR
+      if (!nameFRCache[p.id]) {
+        try {
+          const sp = await apiFetch(`${API}/pokemon-species/${p.id}`);
+          const fr = sp.names?.find(n => n.language.name === 'fr')?.name;
+          if (fr) nameFRCache[p.id] = fr;
+        } catch(e) {}
+      }
+    }));
+    // Re-render visible cards si on est sur le pokédex pour afficher les noms FR fraîchement chargés
+    if (document.getElementById('page-pokedex').classList.contains('active')) {
+      updateVisibleCardNames();
+    }
+    await sleep(40);
+  }
+  persistCaches();
+}
+
+function updateVisibleCardNames() {
+  document.querySelectorAll('.poke-card[data-id]').forEach(card => {
+    const id = parseInt(card.dataset.id);
+    const nameEl = card.querySelector('.poke-name');
+    if (nameEl && nameFRCache[id]) nameEl.textContent = nameFRCache[id];
+    const typesEl = card.querySelector('.poke-types');
+    if (typesEl && typesEl.innerHTML === '' && typeCache[id]) {
+      typesEl.innerHTML = typeCache[id].map(t => typeBadge(t)).join('');
+    }
+  });
+}
+
+// Découvre les formes spéciales (mega, gmax, régionales) en scannant les species
+async function preloadFormVariants() {
+  await sleep(500); // laisser preloadPokemonData prendre l'avantage
+  const BATCH = 10;
+  // On scanne par batches d'IDs de species (1 à 1025)
+  for (let id=1; id<=1025; id+=BATCH) {
+    const batch = [];
+    for (let k=0; k<BATCH && id+k<=1025; k++) batch.push(id+k);
+    await Promise.allSettled(batch.map(async sid => {
       try {
-        const d = await apiFetch(p.url);
-        typeCache[p.id] = d.types.map(t => t.type.name);
-        // Nom FR
-        // on récupère le nom FR depuis species si pas encore en cache
+        const sp = await apiFetch(`${API}/pokemon-species/${sid}`);
+        const varieties = sp.varieties || [];
+        for (const v of varieties) {
+          const formName = v.pokemon.name;
+          if (formName === sp.name) continue; // forme de base, ignorée
+          const formId = parseInt(v.pokemon.url.split('/').slice(-2,-1)[0]);
+          let kind = null;
+          if (formName.includes('-mega'))                          kind = 'mega';
+          else if (formName.includes('-gmax'))                     kind = 'gmax';
+          else if (/-alola|-galar|-hisui|-paldea/.test(formName))  kind = 'regional';
+          if (!kind) continue;
+
+          // Nom FR du Pokémon de base + suffixe
+          const baseFR = sp.names?.find(n=>n.language.name==='fr')?.name || cap(sp.name);
+          let suffix = '';
+          if (kind === 'mega') {
+            if (formName.endsWith('-mega-x')) suffix = ' Méga X';
+            else if (formName.endsWith('-mega-y')) suffix = ' Méga Y';
+            else suffix = ' Méga';
+            suffix = ' (Méga' + (formName.endsWith('-mega-x')?' X':formName.endsWith('-mega-y')?' Y':'') + ')';
+          } else if (kind === 'gmax') {
+            suffix = ' (Gigamax)';
+          } else if (kind === 'regional') {
+            if (formName.includes('-alola'))  suffix = " (Forme d'Alola)";
+            if (formName.includes('-galar'))  suffix = ' (Forme de Galar)';
+            if (formName.includes('-hisui'))  suffix = ' (Forme de Hisui)';
+            if (formName.includes('-paldea')) suffix = ' (Forme de Paldea)';
+          }
+          nameFRCache[formId] = baseFR + suffix;
+
+          formVariants.push({
+            id: formId,
+            name: formName,
+            url: v.pokemon.url,
+            kind,
+            baseId: sid
+          });
+        }
       } catch(e) {}
     }));
     await sleep(30);
   }
+  persistCaches();
 }
 
 // ═══════════════════════════════════════════════
@@ -282,11 +412,27 @@ function showPage(id) {
 }
 
 // ═══════════════════════════════════════════════
-// POKÉDEX — filtre avec cache des types
+// POKÉDEX — filtres combinés (génération, recherche, type 1/2, formes)
 // ═══════════════════════════════════════════════
 function filterPokedex() {
   currentPage = 1;
   applyTypeFilter();
+}
+
+function setFormFilter(form) {
+  activeFormFilter = form;
+  document.querySelectorAll('.form-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.form === form);
+  });
+  currentPage = 1;
+  applyTypeFilter();
+}
+
+function getPokemonPool() {
+  // Selon le filtre formes, on construit le pool de départ
+  if (activeFormFilter === 'all')      return [...allPokemon, ...formVariants];
+  if (activeFormFilter === 'base')     return [...allPokemon];
+  return formVariants.filter(v => v.kind === activeFormFilter);
 }
 
 function applyTypeFilter() {
@@ -294,14 +440,28 @@ function applyTypeFilter() {
   const gen = parseInt(document.getElementById('genFilter').value);
   const [mn,mx] = GEN_RANGES[gen];
 
-  filteredPokemon = allPokemon.filter(p => {
-    if (p.id < mn || p.id > mx) return false;
-    if (q && !p.name.includes(q) && !String(p.id).includes(q)) return false;
+  const pool = getPokemonPool();
 
-    // Filtre type — si types pas encore dans le cache, on inclut par défaut
+  filteredPokemon = pool.filter(p => {
+    // Pour les formes, on utilise baseId pour le filtre génération
+    const checkId = p.baseId || p.id;
+    if (checkId < mn || checkId > mx) return false;
+
+    // Recherche : nom anglais, français ou ID
+    if (q) {
+      const enName = p.name.toLowerCase();
+      const frName = (nameFRCache[p.id] || '').toLowerCase();
+      if (!enName.includes(q) && !frName.includes(q) && !String(p.id).includes(q))
+        return false;
+    }
+
+    // Filtre type — strict si les types sont en cache
     if (activeType1 || activeType2) {
       const types = typeCache[p.id];
-      if (!types) return true; // pas encore chargé → on inclut
+      if (!types) {
+        // Types pas encore chargés : on inclut, ils seront filtrés au rendu
+        return true;
+      }
       if (activeType1 && !types.includes(activeType1)) return false;
       if (activeType2 && !types.includes(activeType2)) return false;
     }
@@ -325,10 +485,10 @@ function renderPokedex() {
   }
 
   grid.innerHTML = slice.map(p => {
-    // Afficher les types déjà en cache immédiatement
     const typesHtml = typeCache[p.id]
       ? typeCache[p.id].map(t => typeBadge(t)).join('')
       : '';
+    const displayName = nameFRCache[p.id] || p.name.replace(/-/g,' ');
     return `
       <div class="poke-card" onclick="openModal(${p.id})"
            data-url="${p.url}" data-id="${p.id}">
@@ -337,32 +497,41 @@ function renderPokedex() {
              src="${SPR_DEFAULT}${p.id}.png"
              onerror="this.src='${SPR_ART}${p.id}.png'"
              alt="${p.name}" loading="lazy">
-        <div class="poke-name">${nameFRCache[p.id] || p.name.replace(/-/g,' ')}</div>
+        <div class="poke-name">${displayName}</div>
         <div class="poke-types" id="pt-${p.id}">${typesHtml}</div>
       </div>`;
   }).join('');
 
-  // Observer pour les cartes sans types en cache
+  // Observer pour charger les types des cartes pas encore en cache
   typeCardObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       const card = entry.target;
       const pid  = parseInt(card.dataset.id);
       typeCardObserver.unobserve(card);
-      if (typeCache[pid]) return; // déjà chargé
-      apiFetch(card.dataset.url).then(d => {
-        typeCache[pid] = d.types.map(t => t.type.name);
-        const el = document.getElementById('pt-'+pid);
-        if (el) el.innerHTML = typeCache[pid].map(t => typeBadge(t)).join('');
-        // re-filtrer si un filtre type actif (peut retirer la carte si mauvais type)
-        if (activeType1 || activeType2) {
+      if (typeCache[pid]) {
+        // Maintenant qu'on a les types, re-vérifier si la carte doit rester
+        if ((activeType1 || activeType2)) {
           const types = typeCache[pid];
           const ok = (!activeType1 || types.includes(activeType1))
                   && (!activeType2 || types.includes(activeType2));
           if (!ok) {
-            const cardEl = document.querySelector(`.poke-card[data-id="${pid}"]`);
-            if (cardEl) cardEl.style.display = 'none';
+            // Re-filtrer proprement (régénère tout le grid)
+            applyTypeFilter();
           }
+        }
+        return;
+      }
+      apiFetch(card.dataset.url).then(d => {
+        typeCache[pid] = d.types.map(t => t.type.name);
+        const el = document.getElementById('pt-'+pid);
+        if (el) el.innerHTML = typeCache[pid].map(t => typeBadge(t)).join('');
+        // Re-filtrage si on a un filtre type actif
+        if (activeType1 || activeType2) {
+          const types = typeCache[pid];
+          const ok = (!activeType1 || types.includes(activeType1))
+                  && (!activeType2 || types.includes(activeType2));
+          if (!ok) applyTypeFilter();
         }
       }).catch(()=>{});
     });
@@ -384,6 +553,10 @@ async function openModal(id) {
   document.getElementById('modalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 
+  currentModalId = id;
+  currentModalShiny = false;
+  document.getElementById('shinyToggle')?.classList.remove('active');
+
   document.getElementById('modalSprite').src = `${SPR_ART}${id}.png`;
   document.getElementById('modalNum').textContent = `#${String(id).padStart(4,'0')}`;
   document.getElementById('modalName').textContent = '…';
@@ -401,6 +574,12 @@ async function openModal(id) {
       apiFetch(`${API}/pokemon/${id}`),
       apiFetch(`${API}/pokemon-species/${id}`).catch(()=>null)
     ]);
+
+    // Stocker les deux sprites (normal et shiny) depuis poke.sprites
+    const artNorm  = poke.sprites?.other?.['official-artwork']?.front_default || `${SPR_ART}${id}.png`;
+    const artShiny = poke.sprites?.other?.['official-artwork']?.front_shiny   || poke.sprites?.front_shiny || `${SPR_ART}shiny/${id}.png`;
+    currentModalSprites = { normal: artNorm, shiny: artShiny };
+    document.getElementById('modalSprite').src = artNorm;
 
     // Nom FR depuis species
     const nameFR = species?.names?.find(n=>n.language.name==='fr')?.name
@@ -482,6 +661,14 @@ function closeModal(e) {
   document.body.style.overflow = '';
 }
 
+function toggleShiny() {
+  currentModalShiny = !currentModalShiny;
+  const btn = document.getElementById('shinyToggle');
+  btn.classList.toggle('active', currentModalShiny);
+  const img = document.getElementById('modalSprite');
+  img.src = currentModalShiny ? currentModalSprites.shiny : currentModalSprites.normal;
+}
+
 function switchModalTab(name) {
   document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.modal-tab-content').forEach(c=>c.classList.remove('active'));
@@ -490,15 +677,14 @@ function switchModalTab(name) {
   document.getElementById('mtab-'+name).classList.add('active');
 }
 
-// ── Évolutions ──
+// ── Évolutions (arbre branché) ──
 async function loadEvolutions(url, currentId) {
   try {
     const chain = await apiFetch(url);
-    const nodes = [];
-    function walk(node, trigger) {
-      const id = node.species.url.split('/').slice(-2,-1)[0];
-      nodes.push({id, name:node.species.name, trigger});
-      for (const child of node.evolves_to) {
+
+    function buildTree(node) {
+      const id = parseInt(node.species.url.split('/').slice(-2,-1)[0]);
+      const children = node.evolves_to.map(child => {
         const d = child.evolution_details[0];
         let trig = '';
         if (d) {
@@ -506,34 +692,66 @@ async function loadEvolutions(url, currentId) {
           else if (d.item)                    trig = cap(d.item.name.replace(/-/g,' '));
           else if (d.trigger?.name==='trade') trig = 'Échange';
           else if (d.min_happiness)           trig = 'Amitié';
+          else if (d.held_item)               trig = `Tient ${cap(d.held_item.name.replace(/-/g,' '))}`;
+          else if (d.known_move)              trig = `Connaît ${cap(d.known_move.name.replace(/-/g,' '))}`;
+          else if (d.location)                trig = cap(d.location.name.replace(/-/g,' '));
+          else if (d.time_of_day)             trig = d.time_of_day==='day'?'Jour':'Nuit';
           else                                trig = cap((d.trigger?.name||'').replace(/-/g,' '));
         }
-        walk(child, trig);
-      }
+        return { trigger: trig, tree: buildTree(child) };
+      });
+      return { id, name: node.species.name, children };
     }
-    walk(chain.chain, null);
-    if (nodes.length<=1) {
+
+    const tree = buildTree(chain.chain);
+
+    if (tree.children.length === 0) {
       document.getElementById('mtab-evolutions').innerHTML =
         '<div style="padding:2rem;color:var(--text3)">Ce Pokémon n\'évolue pas.</div>';
       return;
     }
-    let html = '<div class="evo-chain">';
-    nodes.forEach((n,i) => {
-      if (i>0&&n.trigger!==null) html += `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-          <div class="evo-arrow">→</div>
-          <div class="evo-trigger">${n.trigger}</div>
-        </div>`;
-      html += `<div class="evo-mon" onclick="closeModal();openModal(${n.id})">
-        <img src="${SPR_DEFAULT}${n.id}.png" onerror="this.src='${SPR_ART}${n.id}.png'" alt="${n.name}">
-        <div class="evo-name">${nameFRCache[n.id] || cap(n.name)}</div>
-        ${String(n.id)===String(currentId)
-          ?'<div style="width:6px;height:6px;border-radius:50%;background:var(--teal2);margin:0 auto"></div>':''}
+
+    function renderNode(node) {
+      const isCurrent = String(node.id) === String(currentId);
+      return `<div class="evo-mon" onclick="closeModal();openModal(${node.id})">
+        <img src="${SPR_DEFAULT}${node.id}.png" onerror="this.src='${SPR_ART}${node.id}.png'" alt="${node.name}">
+        <div class="evo-name">${nameFRCache[node.id] || cap(node.name)}</div>
+        ${isCurrent ? '<div style="width:6px;height:6px;border-radius:50%;background:var(--teal2);margin:0 auto"></div>' : ''}
       </div>`;
-    });
-    html += '</div>';
+    }
+
+    function renderArrow(trigger) {
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">
+        <div class="evo-arrow">→</div>
+        <div class="evo-trigger">${trigger || ''}</div>
+      </div>`;
+    }
+
+    function renderTree(node) {
+      if (node.children.length === 0) return renderNode(node);
+
+      if (node.children.length === 1) {
+        // Branche unique : ligne horizontale
+        const child = node.children[0];
+        return `${renderNode(node)}${renderArrow(child.trigger)}${renderTree(child.tree)}`;
+      }
+
+      // Plusieurs évolutions : on empile les branches verticalement à droite du parent
+      const branchesHtml = node.children.map(child => `
+        <div class="evo-branch-line">
+          ${renderArrow(child.trigger)}
+          ${renderTree(child.tree)}
+        </div>
+      `).join('');
+
+      return `${renderNode(node)}<div class="evo-branch-group">${branchesHtml}</div>`;
+    }
+
+    const html = `<div class="evo-tree"><div class="evo-stage">${renderTree(tree)}</div></div>`;
     document.getElementById('mtab-evolutions').innerHTML = html;
+
   } catch(e) {
+    console.error(e);
     document.getElementById('mtab-evolutions').innerHTML =
       '<div style="padding:2rem;color:var(--text3)">Impossible de charger les évolutions.</div>';
   }
