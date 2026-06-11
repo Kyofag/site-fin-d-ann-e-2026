@@ -1023,3 +1023,371 @@ header {
   color: #fff;
   box-shadow: 0 0 12px rgba(231,76,60,.3);
 }
+
+/* ── MODE TOGGLE (page Types) ── */
+.mode-toggle {
+  display: inline-flex;
+  background: var(--crystal);
+  border: 1px solid var(--border);
+  border-radius: 50px;
+  padding: 4px;
+  margin-bottom: 1.5rem;
+  gap: 2px;
+}
+.mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: .5rem 1.2rem;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.mode-btn:hover { color: var(--text); }
+.mode-btn.active {
+  background: var(--teal2);
+  color: var(--sapphire3);
+  box-shadow: 0 0 12px rgba(0,212,170,.3);
+}
+[data-theme="light"] .mode-btn.active { color: #fff; }
+
+/* ── TABLE TYPES — version "grid" plus aérée ── */
+.type-grid-table {
+  display: grid;
+  grid-template-columns: 80px repeat(18, 1fr);
+  gap: 2px;
+  font-size: 10px;
+  min-width: 720px;
+}
+.type-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 2px;
+  font-family: 'Share Tech Mono', monospace;
+  border-radius: 4px;
+  min-height: 28px;
+}
+.type-cell.header-col {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: .5px;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  padding: 8px 2px;
+  min-height: 60px;
+}
+.type-cell.header-row {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  justify-content: flex-end;
+  padding: 0 8px 0 0;
+}
+.type-cell.corner {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── JUKEBOX ── */
+.jukebox-wrap {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.player-card {
+  background: linear-gradient(145deg, var(--crystal2), var(--crystal));
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.player-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(0,212,170,.08), transparent 60%);
+  pointer-events: none;
+}
+
+/* Vinyl animé */
+.player-vinyl {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.vinyl-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, #1a1a1a 0, #1a1a1a 2px, #0a0a0a 3px, #0a0a0a 4px),
+    radial-gradient(circle, #2a2a2a, #050505);
+  position: relative;
+  box-shadow:
+    0 8px 24px rgba(0,0,0,.4),
+    inset 0 0 30px rgba(0,0,0,.6);
+  border: 3px solid #0a0a0a;
+}
+.vinyl-disc::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ruby2), var(--ruby));
+  box-shadow: inset 0 0 16px rgba(0,0,0,.3);
+}
+.vinyl-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #222;
+  z-index: 2;
+}
+.vinyl-center::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: #222;
+}
+.player-vinyl.spinning .vinyl-disc { animation: vinylSpin 4s linear infinite; }
+@keyframes vinylSpin { to { transform: rotate(360deg); } }
+
+.player-info {
+  text-align: center;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+.now-playing-label {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: .75rem;
+  color: var(--text3);
+  margin-bottom: .25rem;
+}
+.now-playing-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+  min-height: 1.6rem;
+}
+
+.progress-wrap { margin-bottom: 1.5rem; }
+.progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,.08);
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 6px;
+  position: relative;
+}
+[data-theme="light"] .progress-bar { background: rgba(0,0,0,.1); }
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--teal2), var(--gold2));
+  border-radius: 3px;
+  transition: width .1s linear;
+}
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.player-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+.player-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--crystal);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.player-btn:hover {
+  background: var(--crystal2);
+  border-color: var(--teal2);
+  color: var(--teal2);
+  transform: translateY(-2px);
+}
+.player-btn.play-btn {
+  width: 54px;
+  height: 54px;
+  background: linear-gradient(135deg, var(--ruby2), var(--ruby));
+  border-color: var(--ruby);
+  color: #fff;
+  font-size: 18px;
+  box-shadow: 0 4px 16px rgba(231,76,60,.4);
+}
+.player-btn.play-btn:hover {
+  background: linear-gradient(135deg, var(--ruby), var(--ruby2));
+  transform: translateY(-2px) scale(1.05);
+  color: #fff;
+}
+.player-btn.toggled {
+  background: var(--teal2);
+  color: var(--sapphire3);
+  border-color: var(--teal2);
+}
+[data-theme="light"] .player-btn.toggled { color: #fff; }
+
+.volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+.volume-icon { font-size: 14px; color: var(--text3); }
+.volume-slider {
+  width: 140px;
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+}
+[data-theme="light"] .volume-slider { background: rgba(0,0,0,.1); }
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--teal2);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0,212,170,.5);
+}
+.volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--teal2);
+  cursor: pointer;
+  border: none;
+}
+
+/* Playlist */
+.playlist-card {
+  background: var(--crystal);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  max-height: 540px;
+}
+.playlist-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold2);
+  margin-bottom: 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 1px solid var(--border);
+}
+.playlist {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: .6rem .8rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .15s;
+  border: 1px solid transparent;
+}
+.playlist-item:hover {
+  background: var(--crystal2);
+  border-color: var(--border2);
+}
+.playlist-item.active {
+  background: linear-gradient(135deg, rgba(0,212,170,.15), rgba(241,196,15,.1));
+  border-color: var(--teal2);
+}
+.playlist-num {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text3);
+  min-width: 22px;
+}
+.playlist-item.active .playlist-num { color: var(--teal2); }
+.playlist-name {
+  flex: 1;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text);
+}
+.playlist-item.active .playlist-name { color: var(--teal2); font-weight: 600; }
+.playlist-icon {
+  font-size: 14px;
+  color: var(--text3);
+}
+.playlist-item.active .playlist-icon { color: var(--gold2); }
+
+@media (max-width: 800px) {
+  .jukebox-wrap { grid-template-columns: 1fr; }
+  .player-vinyl { width: 160px; height: 160px; }
+}

@@ -404,11 +404,12 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const map = {pokedex:0,types:1,compare:2,team:3,moves:4,abilities:5};
+  const map = {pokedex:0,types:1,compare:2,team:3,moves:4,abilities:5,jukebox:6};
   document.querySelectorAll('.nav-tab')[map[id]].classList.add('active');
   if (id==='types'     && !document.getElementById('typeSelector').innerHTML) initTypeCalc();
   if (id==='moves'     && movesData.length===0) loadMoves();
   if (id==='abilities' && abilitiesData.length===0) loadAbilities();
+  if (id==='jukebox'   && !audioEl) initJukebox();
 }
 
 // ═══════════════════════════════════════════════
@@ -951,6 +952,7 @@ async function loadSmogon(name, types) {
 // CALCULATEUR DE TYPES
 // ═══════════════════════════════════════════════
 let selectedTypes = [];
+let typeMode = 'defensive'; // 'defensive' | 'offensive'
 
 function initTypeCalc() {
   document.getElementById('typeSelector').innerHTML = TYPES.map(t=>`
@@ -960,39 +962,88 @@ function initTypeCalc() {
   renderTypeTable();
 }
 
-function toggleTypeSelect(t) {
-  selectedTypes = selectedTypes.includes(t)
-    ? selectedTypes.filter(x=>x!==t)
-    : selectedTypes.length<2 ? [...selectedTypes,t] : [selectedTypes[1],t];
+function setTypeMode(mode) {
+  typeMode = mode;
+  document.getElementById('mode-def').classList.toggle('active', mode === 'defensive');
+  document.getElementById('mode-atk').classList.toggle('active', mode === 'offensive');
+
+  const label = document.getElementById('typeModeLabel');
+  const hint = document.getElementById('typeModeHint');
+  if (mode === 'defensive') {
+    label.textContent = 'Type(s) du Pokémon défenseur :';
+    hint.textContent = 'Sélectionner 1 ou 2 types (le défenseur peut avoir un type double)';
+  } else {
+    label.textContent = 'Type de l\'attaque :';
+    hint.textContent = 'Sélectionner 1 seul type d\'attaque (les attaques n\'ont qu\'un type)';
+    // En offensive on garde un seul type
+    if (selectedTypes.length > 1) selectedTypes = [selectedTypes[0]];
+    refreshTypeButtons();
+  }
+  renderTypeResult();
+}
+
+function refreshTypeButtons() {
   TYPES.forEach(tp => {
     const btn = document.getElementById('tsbtn-'+tp);
+    if (!btn) return;
     const sel = selectedTypes.includes(tp);
     btn.style.background  = sel?TYPE_COLORS[tp]+'30':'';
     btn.style.borderColor = sel?TYPE_COLORS[tp]:TYPE_COLORS[tp]+'40';
     btn.style.boxShadow   = sel?`0 0 10px ${TYPE_COLORS[tp]}50`:'';
   });
+}
+
+function toggleTypeSelect(t) {
+  if (typeMode === 'offensive') {
+    // En offensive, un seul type : on remplace ou on désélectionne
+    selectedTypes = selectedTypes.includes(t) ? [] : [t];
+  } else {
+    selectedTypes = selectedTypes.includes(t)
+      ? selectedTypes.filter(x=>x!==t)
+      : selectedTypes.length<2 ? [...selectedTypes,t] : [selectedTypes[1],t];
+  }
+  refreshTypeButtons();
   renderTypeResult();
 }
 
 function renderTypeResult() {
   const c = document.getElementById('typeResult');
   if (!selectedTypes.length){c.innerHTML='';return;}
-  const eff={};
-  TYPES.forEach(atk=>{
-    let m=1;
-    selectedTypes.forEach(def=>{m*=(TYPE_CHART[atk]?.[def]??1);});
-    eff[atk]=m;
-  });
+
+  const eff = {};
+  if (typeMode === 'defensive') {
+    // Mode défense : pour chaque type attaquant, multiplier les eff sur les types défenseurs
+    TYPES.forEach(atk => {
+      let m = 1;
+      selectedTypes.forEach(def => { m *= (TYPE_CHART[atk]?.[def] ?? 1); });
+      eff[atk] = m;
+    });
+  } else {
+    // Mode offensive : un seul type attaquant, on regarde ce qu'il fait contre chaque type défenseur
+    const atk = selectedTypes[0];
+    TYPES.forEach(def => {
+      eff[def] = TYPE_CHART[atk]?.[def] ?? 1;
+    });
+  }
+
   const groups={'4x':[],'2x':[],'1x':[],'0.5x':[],'0.25x':[],'0x':[]};
   Object.entries(eff).forEach(([t,m])=>{
     const k=m===4?'4x':m===2?'2x':m===1?'1x':m===.5?'0.5x':m===.25?'0.25x':'0x';
     groups[k].push(t);
   });
   const clsMap={'4x':'mult-4x','2x':'mult-2x','1x':'mult-1x','0.5x':'mult-05x','0.25x':'mult-025x','0x':'mult-0x'};
-  const lblMap={'4x':'×4','2x':'×2','1x':'×1','0.5x':'×½','0.25x':'×¼','0x':'×0 Immunité'};
-  c.innerHTML=`
+  // Labels dépendent du mode
+  const lblDef={'4x':'×4 Faiblesse','2x':'×2 Faiblesse','1x':'×1 Neutre','0.5x':'×½ Résistance','0.25x':'×¼ Résistance','0x':'×0 Immunité'};
+  const lblAtk={'4x':'×4 Super efficace','2x':'×2 Super efficace','1x':'×1 Neutre','0.5x':'×½ Peu efficace','0.25x':'×¼ Peu efficace','0x':'×0 Aucun effet'};
+  const lblMap = typeMode === 'defensive' ? lblDef : lblAtk;
+
+  const header = typeMode === 'defensive'
+    ? `Défense : ${selectedTypes.map(t=>`<span style="color:${TYPE_COLORS[t]}">${TYPE_FR[t]}</span>`).join(' / ')}`
+    : `Attaque de type : <span style="color:${TYPE_COLORS[selectedTypes[0]]}">${TYPE_FR[selectedTypes[0]]}</span>`;
+
+  c.innerHTML = `
     <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;letter-spacing:1px;color:var(--text);margin-bottom:1rem">
-      Défense : ${selectedTypes.map(t=>`<span style="color:${TYPE_COLORS[t]}">${TYPE_FR[t]}</span>`).join(' / ')}
+      ${header}
     </div>
     ${Object.entries(groups).filter(([,a])=>a.length).map(([m,ts])=>`
       <div class="matchup-row">
@@ -1002,22 +1053,31 @@ function renderTypeResult() {
 }
 
 function renderTypeTable() {
-  document.getElementById('typeTable').innerHTML=`
-    <table style="border-collapse:collapse;font-size:10px">
-      <thead><tr>
-        <th style="padding:3px;color:var(--text3);font-family:'Rajdhani',sans-serif">ATK↓ DEF→</th>
-        ${TYPES.map(t=>`<th style="padding:3px 2px;writing-mode:vertical-lr;transform:rotate(180deg);color:${TYPE_COLORS[t]};font-family:'Rajdhani',sans-serif;font-weight:700;font-size:9px">${TYPE_FR[t]}</th>`).join('')}
-      </tr></thead>
-      <tbody>${TYPES.map(atk=>`<tr>
-        <td style="padding:3px 6px;color:${TYPE_COLORS[atk]};font-family:'Rajdhani',sans-serif;font-weight:700;white-space:nowrap;font-size:9px">${TYPE_FR[atk]}</td>
-        ${TYPES.map(def=>{
-          const m=TYPE_CHART[atk]?.[def]??1;
-          const bg=m===4?'rgba(231,76,60,.5)':m===2?'rgba(231,76,60,.3)':m===.5?'rgba(26,188,156,.2)':m===0?'rgba(0,0,0,.4)':'transparent';
-          const txt=m===1?'':m===0?'✕':`${m}×`;
-          return `<td style="text-align:center;padding:2px;background:${bg};border:1px solid rgba(255,255,255,.03);font-family:'Share Tech Mono',monospace;font-size:9px;color:${m>1?'#e74c3c':m<1&&m>0?'#1abc9c':m===0?'#7f8c8d':'var(--text3)'}">${txt}</td>`;
-        }).join('')}
-      </tr>`).join('')}</tbody>
-    </table>`;
+  // Version grid plus aérée
+  const cells = [];
+  // Coin haut-gauche
+  cells.push(`<div class="type-cell corner">ATK ↓<br>DEF →</div>`);
+  // Headers colonnes (types défenseurs en haut)
+  TYPES.forEach(t => {
+    cells.push(`<div class="type-cell header-col" style="color:${TYPE_COLORS[t]};background:${TYPE_COLORS[t]}15">${TYPE_FR[t]}</div>`);
+  });
+  // Lignes : type attaquant + 18 cellules d'efficacité
+  TYPES.forEach(atk => {
+    cells.push(`<div class="type-cell header-row" style="color:${TYPE_COLORS[atk]};background:${TYPE_COLORS[atk]}15">${TYPE_FR[atk]}</div>`);
+    TYPES.forEach(def => {
+      const m = TYPE_CHART[atk]?.[def] ?? 1;
+      let bg, color, txt;
+      if (m === 4)      { bg='rgba(231,76,60,.5)';   color='#fff';     txt='4×'; }
+      else if (m === 2) { bg='rgba(231,76,60,.3)';   color='#e74c3c';  txt='2×'; }
+      else if (m === 1) { bg='transparent';          color='var(--text3)'; txt='—'; }
+      else if (m === .5){ bg='rgba(26,188,156,.2)';  color='#1abc9c';  txt='½'; }
+      else if (m === .25){bg='rgba(26,188,156,.35)'; color='#27ae60';  txt='¼'; }
+      else              { bg='rgba(52,73,94,.6)';    color='#fff';     txt='0'; }
+      cells.push(`<div class="type-cell" style="background:${bg};color:${color}" title="${TYPE_FR[atk]} → ${TYPE_FR[def]} : ${m}×">${txt}</div>`);
+    });
+  });
+  document.getElementById('typeTable').innerHTML =
+    `<div style="overflow-x:auto"><div class="type-grid-table">${cells.join('')}</div></div>`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1284,5 +1344,146 @@ function renderPagination(containerId,current,total,onPage){
 }
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+// ═══════════════════════════════════════════════
+// JUKEBOX
+// ═══════════════════════════════════════════════
+// Modifie ce tableau avec les vrais noms de fichiers et titres
+const PLAYLIST = [
+  { file: 'music/track1.mp3',  title: 'Piste 1' },
+  { file: 'music/track2.mp3',  title: 'Piste 2' },
+  { file: 'music/track3.mp3',  title: 'Piste 3' },
+  { file: 'music/track4.mp3',  title: 'Piste 4' },
+  { file: 'music/track5.mp3',  title: 'Piste 5' },
+  { file: 'music/track6.mp3',  title: 'Piste 6' },
+  { file: 'music/track7.mp3',  title: 'Piste 7' },
+  { file: 'music/track8.mp3',  title: 'Piste 8' },
+  { file: 'music/track9.mp3',  title: 'Piste 9' },
+  { file: 'music/track10.mp3', title: 'Piste 10' },
+];
+
+let currentTrackIdx = -1;
+let isShuffle = false;
+let isLoop = false;
+let audioEl = null;
+
+function initJukebox() {
+  audioEl = document.getElementById('audioPlayer');
+  if (!audioEl) return;
+
+  // Volume initial
+  audioEl.volume = 0.7;
+
+  // Events audio
+  audioEl.addEventListener('timeupdate', updateProgress);
+  audioEl.addEventListener('loadedmetadata', () => {
+    document.getElementById('timeTotal').textContent = formatTime(audioEl.duration);
+  });
+  audioEl.addEventListener('ended', () => {
+    if (isLoop) { audioEl.currentTime = 0; audioEl.play(); }
+    else nextTrack();
+  });
+  audioEl.addEventListener('play', () => {
+    document.getElementById('playBtn').textContent = '⏸';
+    document.getElementById('playerVinyl').classList.add('spinning');
+  });
+  audioEl.addEventListener('pause', () => {
+    document.getElementById('playBtn').textContent = '▶';
+    document.getElementById('playerVinyl').classList.remove('spinning');
+  });
+  audioEl.addEventListener('error', () => {
+    document.getElementById('nowPlayingTitle').textContent = 'Erreur — fichier introuvable';
+    document.getElementById('playerVinyl').classList.remove('spinning');
+  });
+
+  renderPlaylist();
+}
+
+function renderPlaylist() {
+  const wrap = document.getElementById('playlist');
+  if (!wrap) return;
+  wrap.innerHTML = PLAYLIST.map((track, i) => `
+    <div class="playlist-item ${i === currentTrackIdx ? 'active' : ''}" onclick="playTrack(${i})">
+      <span class="playlist-num">${String(i+1).padStart(2,'0')}</span>
+      <span class="playlist-name">${track.title}</span>
+      <span class="playlist-icon">${i === currentTrackIdx ? '♪' : '🎵'}</span>
+    </div>`).join('');
+}
+
+function playTrack(idx) {
+  if (idx < 0 || idx >= PLAYLIST.length) return;
+  currentTrackIdx = idx;
+  audioEl.src = PLAYLIST[idx].file;
+  document.getElementById('nowPlayingTitle').textContent = PLAYLIST[idx].title;
+  audioEl.play().catch(e => {
+    document.getElementById('nowPlayingTitle').textContent = 'Erreur de lecture';
+  });
+  renderPlaylist();
+}
+
+function togglePlay() {
+  if (!audioEl) return;
+  if (currentTrackIdx === -1) {
+    playTrack(0);
+    return;
+  }
+  if (audioEl.paused) audioEl.play();
+  else audioEl.pause();
+}
+
+function nextTrack() {
+  if (isShuffle) {
+    let next;
+    do { next = Math.floor(Math.random() * PLAYLIST.length); }
+    while (next === currentTrackIdx && PLAYLIST.length > 1);
+    playTrack(next);
+  } else {
+    playTrack((currentTrackIdx + 1) % PLAYLIST.length);
+  }
+}
+
+function prevTrack() {
+  if (audioEl.currentTime > 3) {
+    audioEl.currentTime = 0;
+    return;
+  }
+  playTrack((currentTrackIdx - 1 + PLAYLIST.length) % PLAYLIST.length);
+}
+
+function toggleShuffle() {
+  isShuffle = !isShuffle;
+  document.getElementById('shuffleBtn').classList.toggle('toggled', isShuffle);
+}
+
+function toggleLoop() {
+  isLoop = !isLoop;
+  document.getElementById('loopBtn').classList.toggle('toggled', isLoop);
+}
+
+function setVolume(v) {
+  if (audioEl) audioEl.volume = v / 100;
+}
+
+function updateProgress() {
+  if (!audioEl || !audioEl.duration) return;
+  const pct = (audioEl.currentTime / audioEl.duration) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('timeCurrent').textContent = formatTime(audioEl.currentTime);
+}
+
+function seekTrack(e) {
+  if (!audioEl || !audioEl.duration) return;
+  const bar = document.getElementById('progressBar');
+  const rect = bar.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  audioEl.currentTime = pct * audioEl.duration;
+}
+
+function formatTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
 
 init();

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PokéDex ORAS</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23fff' stroke='%23222' stroke-width='6'/%3E%3Cpath d='M 4 50 A 46 46 0 0 1 96 50 Z' fill='%23e74c3c'/%3E%3Crect x='4' y='47' width='92' height='6' fill='%23222'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23fff' stroke='%23222' stroke-width='6'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -50,6 +51,15 @@
   <div class="nav-tab" onclick="showPage('team')">🎯 Team Builder</div>
   <div class="nav-tab" onclick="showPage('moves')">💥 Capacités</div>
   <div class="nav-tab" onclick="showPage('abilities')">✨ Talents</div>
+  <div class="nav-tab" onclick="showPage('jukebox')">
+    <svg width="14" height="14" viewBox="0 0 100 100" style="vertical-align:-2px">
+      <circle cx="50" cy="50" r="46" fill="#fff" stroke="#222" stroke-width="6"/>
+      <path d="M 4 50 A 46 46 0 0 1 96 50 Z" fill="#e74c3c"/>
+      <rect x="4" y="47" width="92" height="6" fill="#222"/>
+      <circle cx="50" cy="50" r="12" fill="#fff" stroke="#222" stroke-width="6"/>
+    </svg>
+    Jukebox
+  </div>
 </div>
 
 <!-- PAGE POKÉDEX -->
@@ -86,16 +96,23 @@
 <!-- PAGE TYPES -->
 <div class="page" id="page-types">
   <div class="section-title">Calculateur de Types</div>
+
+  <!-- Toggle Défensive / Offensive -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="mode-def" onclick="setTypeMode('defensive')">🛡️ Défensive</button>
+    <button class="mode-btn" id="mode-atk" onclick="setTypeMode('offensive')">⚔️ Offensive</button>
+  </div>
+
   <div class="type-calc-grid">
     <div>
-      <p class="filter-label">Sélectionner un ou deux types :</p>
+      <p class="filter-label" id="typeModeLabel">Type(s) du Pokémon défenseur :</p>
       <div class="type-selector" id="typeSelector"></div>
-      <p class="filter-hint">Clic pour sélectionner (max 2)</p>
+      <p class="filter-hint" id="typeModeHint">Sélectionner 1 ou 2 types (le défenseur peut avoir un type double)</p>
       <div id="typeResult"></div>
     </div>
     <div>
       <p class="filter-label" style="margin-bottom:1rem">Table d'efficacité complète</p>
-      <div id="typeTable" style="overflow-x:auto"></div>
+      <div id="typeTable"></div>
     </div>
   </div>
 </div>
@@ -186,6 +203,61 @@
   </div>
   <div id="abilitiesList"></div>
   <div class="pagination" id="abilitiesPagination"></div>
+</div>
+
+<!-- PAGE JUKEBOX -->
+<div class="page" id="page-jukebox">
+  <div class="section-title">Jukebox</div>
+
+  <div class="jukebox-wrap">
+    <!-- Player principal -->
+    <div class="player-card">
+      <div class="player-vinyl" id="playerVinyl">
+        <div class="vinyl-disc">
+          <div class="vinyl-center"></div>
+        </div>
+      </div>
+      <div class="player-info">
+        <div class="now-playing-label">En cours de lecture</div>
+        <div class="now-playing-title" id="nowPlayingTitle">Sélectionne une piste</div>
+
+        <!-- Barre de progression -->
+        <div class="progress-wrap">
+          <div class="progress-bar" id="progressBar" onclick="seekTrack(event)">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="time-row">
+            <span class="time-current" id="timeCurrent">0:00</span>
+            <span class="time-total" id="timeTotal">0:00</span>
+          </div>
+        </div>
+
+        <!-- Contrôles -->
+        <div class="player-controls">
+          <button class="player-btn" onclick="prevTrack()" title="Précédente">⏮</button>
+          <button class="player-btn play-btn" id="playBtn" onclick="togglePlay()" title="Lecture/Pause">▶</button>
+          <button class="player-btn" onclick="nextTrack()" title="Suivante">⏭</button>
+          <button class="player-btn" id="shuffleBtn" onclick="toggleShuffle()" title="Aléatoire">🔀</button>
+          <button class="player-btn" id="loopBtn" onclick="toggleLoop()" title="Boucle">🔁</button>
+        </div>
+
+        <!-- Volume -->
+        <div class="volume-wrap">
+          <span class="volume-icon">🔊</span>
+          <input type="range" id="volumeSlider" min="0" max="100" value="70"
+                 oninput="setVolume(this.value)" class="volume-slider">
+        </div>
+      </div>
+    </div>
+
+    <!-- Playlist -->
+    <div class="playlist-card">
+      <div class="playlist-title">Playlist</div>
+      <div class="playlist" id="playlist"></div>
+    </div>
+  </div>
+
+  <audio id="audioPlayer" preload="metadata"></audio>
 </div>
 
 <!-- MODAL POKÉMON -->
