@@ -428,6 +428,29 @@ function setFormFilter(form) {
   applyTypeFilter();
 }
 
+function resetFilters() {
+  // Réinitialiser tous les états de filtre
+  activeType1 = '';
+  activeType2 = '';
+  activeFormFilter = 'all';
+  currentPage = 1;
+
+  // Reset des champs UI
+  document.getElementById('mainSearch').value = '';
+  document.getElementById('genFilter').value = '0';
+
+  // Reset visuel des boutons de type
+  updateTypePills(1);
+  updateTypePills(2);
+
+  // Reset visuel des boutons de forme
+  document.querySelectorAll('.form-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.form === 'all');
+  });
+
+  applyTypeFilter();
+}
+
 function getPokemonPool() {
   // Selon le filtre formes, on construit le pool de départ
   if (activeFormFilter === 'all')      return [...allPokemon, ...formVariants];
@@ -503,36 +526,44 @@ function renderPokedex() {
   }).join('');
 
   // Observer pour charger les types des cartes pas encore en cache
+  // Note: on évite de re-render à chaque carte pour ne pas créer de boucle infinie
+  // — on masque juste la carte non-conforme, et on debounce le re-filtrage global
+  let refilterTimer = null;
+  const scheduleRefilter = () => {
+    if (!(activeType1 || activeType2)) return;
+    clearTimeout(refilterTimer);
+    refilterTimer = setTimeout(() => applyTypeFilter(), 400);
+  };
+
   typeCardObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       const card = entry.target;
       const pid  = parseInt(card.dataset.id);
       typeCardObserver.unobserve(card);
-      if (typeCache[pid]) {
-        // Maintenant qu'on a les types, re-vérifier si la carte doit rester
-        if ((activeType1 || activeType2)) {
-          const types = typeCache[pid];
-          const ok = (!activeType1 || types.includes(activeType1))
-                  && (!activeType2 || types.includes(activeType2));
-          if (!ok) {
-            // Re-filtrer proprement (régénère tout le grid)
-            applyTypeFilter();
-          }
+
+      const checkAndMaybeHide = () => {
+        if (!(activeType1 || activeType2)) return;
+        const types = typeCache[pid];
+        if (!types) return;
+        const ok = (!activeType1 || types.includes(activeType1))
+                && (!activeType2 || types.includes(activeType2));
+        if (!ok) {
+          card.style.display = 'none';
+          scheduleRefilter();
         }
+      };
+
+      if (typeCache[pid]) {
+        checkAndMaybeHide();
         return;
       }
+
       apiFetch(card.dataset.url).then(d => {
         typeCache[pid] = d.types.map(t => t.type.name);
         const el = document.getElementById('pt-'+pid);
         if (el) el.innerHTML = typeCache[pid].map(t => typeBadge(t)).join('');
-        // Re-filtrage si on a un filtre type actif
-        if (activeType1 || activeType2) {
-          const types = typeCache[pid];
-          const ok = (!activeType1 || types.includes(activeType1))
-                  && (!activeType2 || types.includes(activeType2));
-          if (!ok) applyTypeFilter();
-        }
+        checkAndMaybeHide();
       }).catch(()=>{});
     });
   }, {rootMargin:'120px'});

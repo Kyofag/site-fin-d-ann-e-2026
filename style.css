@@ -993,3 +993,33 @@ header {
   gap: 1rem;
   align-items: center;
 }
+
+/* ── POKÉDEX TOOLBAR (reset) ── */
+.pokedex-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+.btn-reset {
+  background: var(--crystal);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: .5rem 1rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-reset:hover {
+  background: var(--ruby);
+  border-color: var(--ruby2);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(231,76,60,.3);
+}
