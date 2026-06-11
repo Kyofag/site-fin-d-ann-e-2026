@@ -196,6 +196,22 @@ header {
   background-color: var(--crystal);
 }
 
+/* Options du menu déroulant — dark par défaut */
+.gen-select option, .filter-select option, .sort-select option {
+  background: #1a2a3e;
+  color: #e8f4fd;
+  font-family: 'Exo 2', sans-serif;
+  padding: 6px;
+}
+
+/* Options en mode clair */
+[data-theme="light"] .gen-select option,
+[data-theme="light"] .filter-select option,
+[data-theme="light"] .sort-select option {
+  background: #ffffff;
+  color: #1a2a3e;
+}
+
 /* ── NAV TABS ── */
 .nav-tabs {
   background: var(--header-bg);
