@@ -394,6 +394,10 @@ function setMovesType(type) {
       el.style.boxShadow = '';
     }
   });
+  // Si un type est sélectionné, charger en priorité les capacités de ce type
+  if (type) {
+    loadMovesByType(type);
+  }
   filterMoves();
 }
 
@@ -1201,45 +1205,120 @@ function clearTeam() {
 // ═══════════════════════════════════════════════
 // CAPACITÉS
 // ═══════════════════════════════════════════════
+// Liste des capacités par type, chargée à la demande
+const movesByType = {}; // { fire: [moveNames], ... }
+let movesIndexById = {}; // { moveName: idx dans movesData }
+
 async function loadMoves() {
   document.getElementById('movesBody').innerHTML=
-    '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text3)">Chargement de toutes les capacités…</td></tr>';
+    '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text3)">Chargement de la liste des capacités…</td></tr>';
   try {
-    // Récupérer TOUTES les capacités (env. 920+)
+    // Récupérer la liste de toutes les capacités (noms + URL uniquement, rapide)
     const list=await apiFetch(`${API}/move?limit=2000&offset=0`);
     movesData=list.results.map(m=>({
       name:m.name,url:m.url,nameFR:null,
-      power:null,accuracy:null,pp:null,type:null,category:null,effect:null
+      power:null,accuracy:null,pp:null,type:null,category:null,effect:null,
+      loaded:false
     }));
+    // Indexer par nom pour accès rapide
+    movesIndexById = {};
+    movesData.forEach((m,i) => { movesIndexById[m.name] = i; });
+
     filteredMoves=[...movesData];
     renderMoves();
-    loadMovesDetails();
+
+    // Charger en arrière-plan tous les détails, par batches de 22
+    // mais on commencera dans l'ordre actuel, avec possibilité de re-prioriser par type
+    loadMovesDetailsProgressive();
   } catch(e) {
     document.getElementById('movesBody').innerHTML=
       '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--ruby2)">Erreur de chargement</td></tr>';
   }
 }
 
-async function loadMovesDetails() {
-  const BATCH=10;
-  for(let i=0;i<movesData.length;i+=BATCH) {
-    await Promise.allSettled(movesData.slice(i,i+BATCH).map(async(m,j)=>{
+// File d'attente prioritaire : les capacités du type sélectionné passent en premier
+let movesLoadingQueue = [];
+let movesLoadingActive = false;
+
+async function loadMovesDetailsProgressive() {
+  // Initialiser la queue avec toutes les capacités non chargées
+  movesLoadingQueue = movesData.map((m,i) => i);
+  movesLoadingActive = true;
+  await processMovesQueue();
+}
+
+async function processMovesQueue() {
+  const BATCH = 22;
+  while (movesLoadingQueue.length > 0) {
+    const batch = movesLoadingQueue.splice(0, BATCH);
+    await Promise.allSettled(batch.map(async idx => {
+      const m = movesData[idx];
+      if (!m || m.loaded) return;
       try {
-        const d=await apiFetch(m.url);
-        const nameFR=d.names?.find(n=>n.language.name==='fr')?.name
-                   ||d.names?.find(n=>n.language.name==='en')?.name
-                   ||cap(m.name.replace(/-/g,' '));
-        const effect=d.effect_entries?.find(e=>e.language.name==='fr')?.short_effect
-                   ||d.effect_entries?.find(e=>e.language.name==='en')?.short_effect
-                   ||'—';
-        movesData[i+j]={...movesData[i+j],nameFR,power:d.power,accuracy:d.accuracy,pp:d.pp,
-          type:d.type?.name,category:d.damage_class?.name,effect};
-      } catch(e){}
+        const d = await apiFetch(m.url);
+        const nameFR = d.names?.find(n=>n.language.name==='fr')?.name
+                    || d.names?.find(n=>n.language.name==='en')?.name
+                    || cap(m.name.replace(/-/g,' '));
+        const effect = d.effect_entries?.find(e=>e.language.name==='fr')?.short_effect
+                    || d.effect_entries?.find(e=>e.language.name==='en')?.short_effect
+                    || '—';
+        movesData[idx] = {
+          ...movesData[idx],
+          nameFR, power:d.power, accuracy:d.accuracy, pp:d.pp,
+          type:d.type?.name, category:d.damage_class?.name, effect, loaded:true
+        };
+      } catch(e) {}
     }));
-    filteredMoves=applyMovesFilter();
+
+    // Indicateur
+    const loaded = movesData.filter(m=>m.loaded).length;
+    const indicator = document.getElementById('movesLoadingIndicator');
+    if (indicator) {
+      if (loaded < movesData.length) {
+        const pct = Math.round((loaded/movesData.length)*100);
+        indicator.innerHTML = `Chargement des capacités… <span style="color:var(--gold2)">${loaded}/${movesData.length}</span> (${pct}%)`;
+        indicator.style.display = 'block';
+      } else {
+        indicator.style.display = 'none';
+      }
+    }
+
+    filteredMoves = applyMovesFilter();
     renderMoves();
-    await sleep(50);
+    await sleep(20);
   }
+  movesLoadingActive = false;
+}
+
+// Charger en priorité les capacités d'un type donné
+async function loadMovesByType(type) {
+  try {
+    // Récupère la liste des capacités de ce type via /type/{name}
+    const typeData = await apiFetch(`${API}/type/${type}`);
+    const typeMoveNames = (typeData.moves || []).map(m => m.name);
+
+    // Trouver les indices correspondants, non encore chargés
+    const priorityIdxs = typeMoveNames
+      .map(name => movesIndexById[name])
+      .filter(idx => idx !== undefined && movesData[idx] && !movesData[idx].loaded);
+
+    if (priorityIdxs.length === 0) {
+      // Tout est déjà chargé, juste re-render
+      filteredMoves = applyMovesFilter();
+      renderMoves();
+      return;
+    }
+
+    // Retirer ces indices de la queue actuelle, et les remettre en tête
+    movesLoadingQueue = movesLoadingQueue.filter(i => !priorityIdxs.includes(i));
+    movesLoadingQueue.unshift(...priorityIdxs);
+
+    // Si la queue ne tourne plus (chargement déjà fini par exemple), la relancer
+    if (!movesLoadingActive) {
+      movesLoadingActive = true;
+      processMovesQueue();
+    }
+  } catch(e) {}
 }
 
 function applyMovesFilter() {
