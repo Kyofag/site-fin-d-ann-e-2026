@@ -151,6 +151,7 @@ let currentModalSprites = { normal:'', shiny:'' };
 // Noms FR persistés en localStorage entre sessions
 const STORAGE_NAMES = 'pokedex_names_fr_v1';
 const STORAGE_TYPES = 'pokedex_types_v1';
+const STORAGE_FORMS = 'pokedex_forms_v1';
 const STORAGE_THEME = 'pokedex_theme';
 
 let nameFRCache = {};
@@ -160,6 +161,12 @@ try { nameFRCache = JSON.parse(localStorage.getItem(STORAGE_NAMES) || '{}'); } c
 try {
   const cached = JSON.parse(localStorage.getItem(STORAGE_TYPES) || '{}');
   Object.assign(typeCache, cached);
+} catch(e) {}
+
+// Charger les form variants depuis localStorage (pour comparateur/team builder/filtre formes)
+try {
+  const cached = JSON.parse(localStorage.getItem(STORAGE_FORMS) || '[]');
+  if (Array.isArray(cached) && cached.length > 0) formVariants = cached;
 } catch(e) {}
 
 // ═══════════════════════════════════════════════
@@ -189,6 +196,7 @@ function persistCaches() {
   try {
     localStorage.setItem(STORAGE_NAMES, JSON.stringify(nameFRCache));
     localStorage.setItem(STORAGE_TYPES, JSON.stringify(typeCache));
+    localStorage.setItem(STORAGE_FORMS, JSON.stringify(formVariants));
   } catch(e) {}
 }
 setInterval(persistCaches, 8000);
@@ -281,8 +289,11 @@ function updateVisibleCardNames() {
 
 // Découvre les formes spéciales (mega, gmax, régionales) en scannant les species
 async function preloadFormVariants() {
+  // Si on a déjà les variantes en cache, pas besoin de re-scanner
+  if (formVariants.length > 0) return;
+
   await sleep(500); // laisser preloadPokemonData prendre l'avantage
-  const BATCH = 10;
+  const BATCH = 20;
   // On scanne par batches d'IDs de species (1 à 1025)
   for (let id=1; id<=1025; id+=BATCH) {
     const batch = [];
@@ -329,7 +340,7 @@ async function preloadFormVariants() {
         }
       } catch(e) {}
     }));
-    await sleep(30);
+    await sleep(15);
   }
   persistCaches();
 }
