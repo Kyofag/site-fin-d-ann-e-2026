@@ -1348,19 +1348,16 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 // ═══════════════════════════════════════════════
 // JUKEBOX
 // ═══════════════════════════════════════════════
-// Modifie ce tableau avec les vrais noms de fichiers et titres
-const PLAYLIST = [
-  { file: 'music/track1.mp3',  title: 'Piste 1' },
-  { file: 'music/track2.mp3',  title: 'Piste 2' },
-  { file: 'music/track3.mp3',  title: 'Piste 3' },
-  { file: 'music/track4.mp3',  title: 'Piste 4' },
-  { file: 'music/track5.mp3',  title: 'Piste 5' },
-  { file: 'music/track6.mp3',  title: 'Piste 6' },
-  { file: 'music/track7.mp3',  title: 'Piste 7' },
-  { file: 'music/track8.mp3',  title: 'Piste 8' },
-  { file: 'music/track9.mp3',  title: 'Piste 9' },
-  { file: 'music/track10.mp3', title: 'Piste 10' },
-];
+// La playlist est définie dans index.html via les balises <source> dans #trackList
+// Pour ajouter/modifier/supprimer une piste : éditer l'HTML, pas ce fichier.
+let PLAYLIST = [];
+
+function loadPlaylistFromHTML() {
+  PLAYLIST = Array.from(document.querySelectorAll('#trackList source')).map(el => ({
+    file: el.dataset.file,
+    title: el.dataset.title || el.dataset.file.split('/').pop()
+  }));
+}
 
 let currentTrackIdx = -1;
 let isShuffle = false;
@@ -1370,6 +1367,9 @@ let audioEl = null;
 function initJukebox() {
   audioEl = document.getElementById('audioPlayer');
   if (!audioEl) return;
+
+  // Charger la playlist depuis les balises <source> de l'HTML
+  loadPlaylistFromHTML();
 
   // Volume initial
   audioEl.volume = 0.7;
