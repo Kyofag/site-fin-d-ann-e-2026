@@ -204,6 +204,18 @@ async function init() {
     filteredPokemon = [...allPokemon];
 
     buildTypeButtons();
+
+    // Peupler le select monotype du Team Builder
+    const monoSel = document.getElementById('teamMonotype');
+    if (monoSel) {
+      TYPES.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t;
+        o.textContent = TYPE_FR[t];
+        monoSel.appendChild(o);
+      });
+    }
+
     renderPokedex();
     renderTeamDisplay();
     hideLoader();
@@ -454,6 +466,55 @@ function resetFilters() {
   });
 
   applyTypeFilter();
+}
+
+// Reset Calculateur de Types
+function resetTypeCalc() {
+  selectedTypes = [];
+  typeMode = 'defensive';
+  document.getElementById('mode-def').classList.add('active');
+  document.getElementById('mode-atk').classList.remove('active');
+  document.getElementById('typeModeLabel').textContent = 'Type(s) du Pokémon défenseur :';
+  document.getElementById('typeModeHint').textContent = 'Sélectionner 1 ou 2 types (le défenseur peut avoir un type double)';
+  refreshTypeButtons();
+  renderTypeResult();
+}
+
+// Reset Comparateur
+function resetCompare() {
+  cmpData = [null, null];
+  document.getElementById('cmp1Input').value = '';
+  document.getElementById('cmp2Input').value = '';
+  document.getElementById('cmp1Suggestions').innerHTML = '';
+  document.getElementById('cmp2Suggestions').innerHTML = '';
+  document.getElementById('cmp1Card').innerHTML = '<div class="compare-empty">Chercher un Pokémon</div>';
+  document.getElementById('cmp2Card').innerHTML = '<div class="compare-empty">Chercher un Pokémon</div>';
+  document.getElementById('compareStats').innerHTML = '';
+}
+
+// Reset Capacités
+function resetMoves() {
+  movesTypeFilter = '';
+  document.getElementById('movesSearch').value = '';
+  document.getElementById('movesCatFilter').value = '';
+  // Reset visuel des boutons type
+  TYPES.forEach(t => {
+    const el = document.getElementById('mtp-'+t);
+    if (!el) return;
+    el.style.background = TYPE_COLORS[t]+'22';
+    el.style.borderColor = TYPE_COLORS[t]+'55';
+    el.style.color = TYPE_COLORS[t];
+    el.style.boxShadow = '';
+  });
+  movesPage = 1;
+  filterMoves();
+}
+
+// Reset Talents
+function resetAbilities() {
+  document.getElementById('abilitiesSearch').value = '';
+  abilitiesPage = 1;
+  filterAbilities();
 }
 
 function getPokemonPool() {
@@ -1107,10 +1168,19 @@ function suggestCompare(slot) {
   const el=document.getElementById(`cmp${slot}Suggestions`);
   if(val.length<2){el.innerHTML='';return;}
   _cmpT[slot-1]=setTimeout(()=>{
-    const hits=allPokemon.filter(p=>p.name.includes(val)||String(p.id)===val).slice(0,8);
-    el.innerHTML=hits.length
-      ?`<div class="suggest-wrap">${hits.map(p=>`<button class="suggest-btn" onclick="loadCompare(${slot},${p.id})">${nameFRCache[p.id]||p.name}</button>`).join('')}</div>`
-      :'';
+    // Recherche dans Pokémon de base + formes spéciales (mega, gmax, régionales)
+    const allWithForms = [...allPokemon, ...formVariants];
+    const hits = allWithForms.filter(p => {
+      const enName = p.name.toLowerCase();
+      const frName = (nameFRCache[p.id] || '').toLowerCase();
+      return enName.includes(val) || frName.includes(val) || String(p.id) === val;
+    }).slice(0, 10);
+
+    el.innerHTML = hits.length
+      ? `<div class="suggest-wrap">${hits.map(p =>
+          `<button class="suggest-btn" onclick="loadCompare(${slot},${p.id})">${nameFRCache[p.id] || p.name.replace(/-/g,' ')}</button>`
+        ).join('')}</div>`
+      : '';
   },300);
 }
 
@@ -1158,33 +1228,145 @@ function renderCompareStats() {
 // ═══════════════════════════════════════════════
 // TEAM BUILDER
 // ═══════════════════════════════════════════════
+let teamLocked = new Array(6).fill(false); // verrou par slot
+
 function renderTeamDisplay() {
-  document.getElementById('teamDisplay').innerHTML=teamData.map((p,i)=>`
-    <div class="team-slot">
-      ${p
-        ?`<img src="${SPR_DEFAULT}${p.id}.png" onerror="this.src='${SPR_ART}${p.id}.png'"
-               alt="${p.name}" onclick="openModal(${p.id})" style="cursor:pointer">
-           <div class="team-slot-name">${nameFRCache[p.id]||p.name.replace(/-/g,' ')}</div>
-           <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3)">#${String(p.id).padStart(3,'0')}</div>
-           <button class="btn-small" onclick="teamData[${i}]=null;renderTeamDisplay()">✕ Retirer</button>`
-        :`<div style="color:var(--text3);font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:.75rem;text-transform:uppercase">Slot ${i+1}</div>`
-      }
-    </div>`).join('');
+  document.getElementById('teamDisplay').innerHTML=teamData.map((p,i)=>{
+    const locked = teamLocked[i];
+    return `
+      <div class="team-slot ${locked && p ? 'locked' : ''}">
+        ${p
+          ? `<img src="${SPR_DEFAULT}${p.id}.png" onerror="this.src='${SPR_ART}${p.id}.png'"
+                 alt="${p.name}" onclick="openModal(${p.id})" style="cursor:pointer">
+             <div class="team-slot-name">${nameFRCache[p.id]||p.name.replace(/-/g,' ')}</div>
+             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3)">#${String(p.id).padStart(3,'0')}</div>
+             <button class="team-lock-btn ${locked?'locked':''}" onclick="toggleLock(${i})" title="${locked?'Déverrouiller':'Verrouiller'}">${locked?'🔒':'🔓'}</button>
+             <button class="btn-small" onclick="removeFromTeam(${i})">✕ Retirer</button>`
+          : `<div style="color:var(--text3);font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:.75rem;text-transform:uppercase">Slot ${i+1}</div>`
+        }
+      </div>`;
+  }).join('');
+}
+
+function toggleLock(i) {
+  if (!teamData[i]) return; // pas verrouillable si slot vide
+  teamLocked[i] = !teamLocked[i];
+  renderTeamDisplay();
+}
+
+function removeFromTeam(i) {
+  teamData[i] = null;
+  teamLocked[i] = false;
+  renderTeamDisplay();
 }
 
 async function generateTeam() {
-  const gen=parseInt(document.getElementById('teamGen').value);
-  const [mn,mx]=GEN_RANGES[gen];
-  let pool=allPokemon.filter(p=>p.id>=mn&&p.id<=mx);
-  if(pool.length<6) pool=allPokemon;
-  teamData=pool.sort(()=>Math.random()-.5).slice(0,6);
-  renderTeamDisplay();
-  const typeCount={};
-  for(const p of teamData) {
-    try{const d=await apiFetch(`${API}/pokemon/${p.id}`);d.types.forEach(t=>{typeCount[t.type.name]=(typeCount[t.type.name]||0)+1;});}catch(e){}
+  const gen = parseInt(document.getElementById('teamGen').value);
+  const monotype = document.getElementById('teamMonotype').value;
+  const allowMega = document.getElementById('teamAllowMega').checked;
+  const [mn, mx] = GEN_RANGES[gen];
+
+  // Pool de base : Pokémon de la génération choisie
+  let pool = allPokemon.filter(p => p.id >= mn && p.id <= mx);
+
+  // Filtre monotype : on garde seulement ceux qui ont ce type
+  if (monotype) {
+    pool = pool.filter(p => {
+      const types = typeCache[p.id];
+      return types && types.includes(monotype);
+    });
   }
-  if(Object.keys(typeCount).length) {
-    document.getElementById('teamTypeChart').innerHTML=`
+
+  if (pool.length < 1) {
+    // Pas assez de Pokémon — on garde les verrouillés et on laisse les autres vides
+    const lockedSlots = teamData.map((p,i) => teamLocked[i] && p ? p : null);
+    teamData = lockedSlots;
+    renderTeamDisplay();
+    return;
+  }
+
+  // Compter combien de méga sont déjà verrouillées
+  let megaCount = 0;
+  for (let i=0; i<6; i++) {
+    if (teamLocked[i] && teamData[i]) {
+      const isMega = formVariants.find(v => v.id === teamData[i].id && v.kind === 'mega');
+      if (isMega) megaCount++;
+    }
+  }
+
+  // Pool de méga si autorisées (uniquement les méga, on les ajoutera séparément)
+  let megaPool = [];
+  if (allowMega) {
+    megaPool = formVariants.filter(v => v.kind === 'mega');
+    if (monotype) {
+      megaPool = megaPool.filter(v => {
+        const types = typeCache[v.id];
+        return types && types.includes(monotype);
+      });
+    }
+    if (gen !== 0) {
+      megaPool = megaPool.filter(v => v.baseId >= mn && v.baseId <= mx);
+    }
+  }
+
+  // IDs déjà dans la team (verrouillés) pour éviter les doublons
+  const alreadyPresent = new Set();
+  for (let i=0; i<6; i++) {
+    if (teamLocked[i] && teamData[i]) alreadyPresent.add(teamData[i].id);
+  }
+
+  // Mélanger les pools
+  const shuffledPool = [...pool].sort(() => Math.random()-.5);
+  const shuffledMega = [...megaPool].sort(() => Math.random()-.5);
+
+  // Remplir les slots non verrouillés
+  const newTeam = [...teamData];
+  let poolIdx = 0;
+  let megaIdx = 0;
+
+  for (let i=0; i<6; i++) {
+    if (teamLocked[i] && newTeam[i]) continue; // slot verrouillé, on garde
+
+    // Décision : essayer méga si autorisé et limite pas atteinte (max 2)
+    const tryMega = allowMega && megaCount < 2 && megaIdx < shuffledMega.length && Math.random() < 0.35;
+
+    if (tryMega) {
+      // Trouver une méga non encore présente
+      while (megaIdx < shuffledMega.length && alreadyPresent.has(shuffledMega[megaIdx].id)) megaIdx++;
+      if (megaIdx < shuffledMega.length) {
+        newTeam[i] = shuffledMega[megaIdx];
+        alreadyPresent.add(shuffledMega[megaIdx].id);
+        megaCount++;
+        megaIdx++;
+        continue;
+      }
+    }
+
+    // Sinon Pokémon normal
+    while (poolIdx < shuffledPool.length && alreadyPresent.has(shuffledPool[poolIdx].id)) poolIdx++;
+    if (poolIdx < shuffledPool.length) {
+      newTeam[i] = shuffledPool[poolIdx];
+      alreadyPresent.add(shuffledPool[poolIdx].id);
+      poolIdx++;
+    } else {
+      newTeam[i] = null;
+    }
+  }
+
+  teamData = newTeam;
+  renderTeamDisplay();
+
+  // Analyse de couverture de types
+  const typeCount = {};
+  for (const p of teamData) {
+    if (!p) continue;
+    try {
+      const d = await apiFetch(`${API}/pokemon/${p.id}`);
+      d.types.forEach(t => { typeCount[t.type.name] = (typeCount[t.type.name]||0)+1; });
+    } catch(e) {}
+  }
+  if (Object.keys(typeCount).length) {
+    document.getElementById('teamTypeChart').innerHTML = `
       <div style="font-family:'Rajdhani',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:.8rem;color:var(--text3);margin-top:1.5rem;margin-bottom:1rem">Couverture de types</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(typeCount).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`
@@ -1197,9 +1379,13 @@ async function generateTeam() {
 }
 
 function clearTeam() {
-  teamData=new Array(6).fill(null);
+  teamData = new Array(6).fill(null);
+  teamLocked = new Array(6).fill(false);
+  document.getElementById('teamGen').value = '0';
+  document.getElementById('teamMonotype').value = '';
+  document.getElementById('teamAllowMega').checked = false;
   renderTeamDisplay();
-  document.getElementById('teamTypeChart').innerHTML='';
+  document.getElementById('teamTypeChart').innerHTML = '';
 }
 
 // ═══════════════════════════════════════════════

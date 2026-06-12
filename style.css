@@ -1467,3 +1467,77 @@ header {
   font-size: 10px;
   margin-left: 2px;
 }
+
+/* ── PAGE TOOLBAR (reset à droite) ── */
+.page-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+/* ── TEAM BUILDER additions ── */
+.team-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  user-select: none;
+  padding: .4rem .6rem;
+  background: var(--crystal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color .15s;
+}
+.team-checkbox:hover { border-color: var(--border2); }
+.team-checkbox input[type="checkbox"] {
+  accent-color: var(--teal2);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.team-hint {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 1rem;
+  padding: .5rem .75rem;
+  background: rgba(241,196,15,.06);
+  border-left: 2px solid var(--gold2);
+  border-radius: 4px;
+}
+
+.team-slot.locked {
+  border-color: var(--gold2);
+  background: rgba(241,196,15,.08);
+  box-shadow: 0 0 12px rgba(241,196,15,.15);
+}
+
+.team-lock-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text3);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  margin-top: 4px;
+}
+.team-lock-btn:hover { border-color: var(--gold2); color: var(--gold2); }
+.team-lock-btn.locked {
+  background: var(--gold2);
+  border-color: var(--gold2);
+  color: var(--sapphire3);
+}
