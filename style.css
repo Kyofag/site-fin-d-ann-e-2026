@@ -1391,3 +1391,79 @@ header {
   .jukebox-wrap { grid-template-columns: 1fr; }
   .player-vinyl { width: 160px; height: 160px; }
 }
+
+/* ── ABILITY CARDS CLIQUABLES ── */
+.ability-card.clickable { cursor: pointer; }
+.ability-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.ability-arrow {
+  color: var(--text3);
+  font-size: 12px;
+  transition: transform .2s;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.ability-arrow.open { transform: rotate(180deg); color: var(--gold2); }
+
+.ability-poke-list {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.ability-poke-count {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: .75rem;
+}
+.ability-poke-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.ability-poke-mini {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 4px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+[data-theme="light"] .ability-poke-mini { background: rgba(0,0,0,.03); }
+.ability-poke-mini:hover {
+  border-color: var(--teal2);
+  transform: translateY(-2px);
+  background: var(--crystal2);
+}
+.ability-poke-mini img {
+  width: 50px; height: 50px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.ability-poke-mini-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: capitalize;
+  line-height: 1.2;
+}
+.hidden-badge {
+  color: var(--gold2);
+  font-size: 10px;
+  margin-left: 2px;
+}

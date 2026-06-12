@@ -972,13 +972,13 @@ function setTypeMode(mode) {
   if (mode === 'defensive') {
     label.textContent = 'Type(s) du Pokémon défenseur :';
     hint.textContent = 'Sélectionner 1 ou 2 types (le défenseur peut avoir un type double)';
+    // En défense, max 2 types
+    if (selectedTypes.length > 2) selectedTypes = selectedTypes.slice(0, 2);
   } else {
-    label.textContent = 'Type de l\'attaque :';
-    hint.textContent = 'Sélectionner 1 seul type d\'attaque (les attaques n\'ont qu\'un type)';
-    // En offensive on garde un seul type
-    if (selectedTypes.length > 1) selectedTypes = [selectedTypes[0]];
-    refreshTypeButtons();
+    label.textContent = 'Types des attaques du moveset :';
+    hint.textContent = 'Sélectionner jusqu\'à 4 types d\'attaques (un Pokémon a 4 attaques max)';
   }
+  refreshTypeButtons();
   renderTypeResult();
 }
 
@@ -995,8 +995,15 @@ function refreshTypeButtons() {
 
 function toggleTypeSelect(t) {
   if (typeMode === 'offensive') {
-    // En offensive, un seul type : on remplace ou on désélectionne
-    selectedTypes = selectedTypes.includes(t) ? [] : [t];
+    // Mode moveset : jusqu'à 4 types d'attaques
+    if (selectedTypes.includes(t)) {
+      selectedTypes = selectedTypes.filter(x => x !== t);
+    } else if (selectedTypes.length < 4) {
+      selectedTypes = [...selectedTypes, t];
+    } else {
+      // Plein → on remplace le plus ancien
+      selectedTypes = [...selectedTypes.slice(1), t];
+    }
   } else {
     selectedTypes = selectedTypes.includes(t)
       ? selectedTypes.filter(x=>x!==t)
@@ -1019,10 +1026,16 @@ function renderTypeResult() {
       eff[atk] = m;
     });
   } else {
-    // Mode offensive : un seul type attaquant, on regarde ce qu'il fait contre chaque type défenseur
-    const atk = selectedTypes[0];
+    // Mode offensive : pour chaque type défenseur, on prend le MEILLEUR multiplicateur
+    // parmi les attaques sélectionnées (parce qu'un Pokémon utilisera son attaque
+    // la plus efficace contre une cible donnée)
     TYPES.forEach(def => {
-      eff[def] = TYPE_CHART[atk]?.[def] ?? 1;
+      let best = 0;
+      selectedTypes.forEach(atk => {
+        const m = TYPE_CHART[atk]?.[def] ?? 1;
+        if (m > best) best = m;
+      });
+      eff[def] = best;
     });
   }
 
@@ -1039,7 +1052,7 @@ function renderTypeResult() {
 
   const header = typeMode === 'defensive'
     ? `Défense : ${selectedTypes.map(t=>`<span style="color:${TYPE_COLORS[t]}">${TYPE_FR[t]}</span>`).join(' / ')}`
-    : `Attaque de type : <span style="color:${TYPE_COLORS[selectedTypes[0]]}">${TYPE_FR[selectedTypes[0]]}</span>`;
+    : `Moveset : ${selectedTypes.map(t=>`<span style="color:${TYPE_COLORS[t]}">${TYPE_FR[t]}</span>`).join(' + ')}`;
 
   c.innerHTML = `
     <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;letter-spacing:1px;color:var(--text);margin-bottom:1rem">
@@ -1190,10 +1203,11 @@ function clearTeam() {
 // ═══════════════════════════════════════════════
 async function loadMoves() {
   document.getElementById('movesBody').innerHTML=
-    '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text3)">Chargement…</td></tr>';
+    '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text3)">Chargement de toutes les capacités…</td></tr>';
   try {
-    const list=await apiFetch(`${API}/move?limit=850&offset=0`);
-    movesData=list.results.slice(0,250).map(m=>({
+    // Récupérer TOUTES les capacités (env. 920+)
+    const list=await apiFetch(`${API}/move?limit=2000&offset=0`);
+    movesData=list.results.map(m=>({
       name:m.name,url:m.url,nameFR:null,
       power:null,accuracy:null,pp:null,type:null,category:null,effect:null
     }));
@@ -1273,8 +1287,11 @@ async function loadAbilities(){
   document.getElementById('abilitiesList').innerHTML=
     '<div style="color:var(--text3);padding:2rem">Chargement…</div>';
   try{
-    const list=await apiFetch(`${API}/ability?limit=400&offset=0`);
-    abilitiesData=list.results.map(a=>({name:a.name,url:a.url,nameFR:null,desc:null}));
+    const list=await apiFetch(`${API}/ability?limit=500&offset=0`);
+    abilitiesData=list.results.map(a=>({
+      name:a.name, url:a.url, nameFR:null, desc:null,
+      pokemonList:null, expanded:false
+    }));
     filteredAbilities=[...abilitiesData];
     renderAbilities();
     loadAbilitiesDetails();
@@ -1293,6 +1310,11 @@ async function loadAbilitiesDetails(){
           ||d.effect_entries?.find(e=>e.language.name==='fr')?.short_effect
           ||d.effect_entries?.find(e=>e.language.name==='en')?.short_effect
           ||'—';
+        // Liste des Pokémon stockée pour affichage à la demande
+        abilitiesData[i+j].pokemonList = (d.pokemon || []).map(p => {
+          const id = parseInt(p.pokemon.url.split('/').slice(-2,-1)[0]);
+          return { id, name: p.pokemon.name, isHidden: p.is_hidden };
+        }).filter(p => p.id <= 1025); // exclure les formes alternatives au-delà
       }catch(e){}
     }));
     filteredAbilities=applyAbilitiesFilter();
@@ -1307,13 +1329,52 @@ function applyAbilitiesFilter(){
 }
 function filterAbilities(){filteredAbilities=applyAbilitiesFilter();abilitiesPage=1;renderAbilities();}
 
+function toggleAbility(idx) {
+  const slice = filteredAbilities.slice((abilitiesPage-1)*30, abilitiesPage*30);
+  if (!slice[idx]) return;
+  slice[idx].expanded = !slice[idx].expanded;
+  renderAbilities();
+}
+
 function renderAbilities(){
   const slice=filteredAbilities.slice((abilitiesPage-1)*30,abilitiesPage*30);
-  document.getElementById('abilitiesList').innerHTML=slice.map(a=>`
-    <div class="ability-card">
-      <div class="ability-name">${a.nameFR||cap(a.name.replace(/-/g,' '))}</div>
-      <div class="ability-desc">${a.desc||'Chargement…'}</div>
-    </div>`).join('');
+  document.getElementById('abilitiesList').innerHTML=slice.map((a, idx)=>{
+    const list = a.pokemonList || [];
+    const count = list.length;
+    const expanded = a.expanded;
+
+    let listHtml = '';
+    if (expanded && list.length > 0) {
+      listHtml = `
+        <div class="ability-poke-list">
+          <div class="ability-poke-count">${count} Pokémon possède${count>1?'nt':''} ce talent</div>
+          <div class="ability-poke-grid">
+            ${list.map(p => `
+              <div class="ability-poke-mini" onclick="event.stopPropagation();openModal(${p.id})" title="${nameFRCache[p.id]||p.name}">
+                <img src="${SPR_DEFAULT}${p.id}.png" onerror="this.src='${SPR_ART}${p.id}.png'" alt="${p.name}" loading="lazy">
+                <div class="ability-poke-mini-name">
+                  ${nameFRCache[p.id]||p.name.replace(/-/g,' ')}
+                  ${p.isHidden ? '<span class="hidden-badge" title="Talent caché">★</span>' : ''}
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    } else if (expanded) {
+      listHtml = `<div class="ability-poke-list" style="color:var(--text3);font-size:12px;font-style:italic">Aucun Pokémon ne possède ce talent (ou données pas encore chargées).</div>`;
+    }
+
+    return `
+      <div class="ability-card clickable" onclick="toggleAbility(${idx})">
+        <div class="ability-header">
+          <div>
+            <div class="ability-name">${a.nameFR||cap(a.name.replace(/-/g,' '))}</div>
+            <div class="ability-desc">${a.desc||'Chargement…'}</div>
+          </div>
+          <div class="ability-arrow ${expanded?'open':''}">${count > 0 ? '▼' : ''}</div>
+        </div>
+        ${listHtml}
+      </div>`;
+  }).join('');
   renderPagination('abilitiesPagination',abilitiesPage,Math.ceil(filteredAbilities.length/30),pg=>{abilitiesPage=pg;renderAbilities();});
 }
 
